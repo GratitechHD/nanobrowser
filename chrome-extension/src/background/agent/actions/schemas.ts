@@ -117,6 +117,7 @@ export const scrollDownActionSchema: ActionSchema = {
   schema: z.object({
     intent: z.string().optional(),
     amount: z.number().nullable().optional(),
+    to_end: z.boolean().optional(),
   }),
 };
 
@@ -173,5 +174,23 @@ export const waitActionSchema: ActionSchema = {
   schema: z.object({
     intent: z.string().optional(),
     seconds: z.number().nullable().optional(),
+  }),
+};
+
+export const scrollToEndActionSchema = {
+  name: 'scrollToEnd',
+  description:
+    'Scrolls the page all the way to the bottom in one continuous action. Use this when the user wants to scroll to the end, bottom, or bottom of the page, or when they want to see all content. This is more efficient than multiple scroll_down actions.',
+  schema: z.object({
+    intent: z.string().optional(),
+  }),
+};
+
+export const batchClickActionSchema = {
+  name: 'batchClick',
+  description: 'Clicks multiple elements by their indices.',
+  schema: z.object({
+    indices: z.array(z.number()),
+    intent: z.string().optional(),
   }),
 };

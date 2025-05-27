@@ -340,7 +340,23 @@ export class NavigatorAgent extends BaseAgent<z.ZodType, NavigatorResult> {
           return results;
         }
         // TODO: wait for 1 second for now, need to optimize this to avoid unnecessary waiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Use a more intelligent waiting mechanism based on action type
+        const currentPage = await this.context.browserContext.getCurrentPage();
+        // Check if the action is likely to cause a page navigation
+        const isNavigationAction =
+          actionName === 'navigateTo' ||
+          (actionName === 'click' && typeof actionArgs === 'object' && actionArgs !== null && 'url' in actionArgs); // Assuming click actions with a URL argument cause navigation
+
+        if (isNavigationAction) {
+          logger.info(`Waiting for page and frames to load after ${actionName}`);
+          // Use waitForPageAndFramesLoad for navigation actions with a timeout
+          await currentPage.waitForPageAndFramesLoad(15000); // Wait up to 15 seconds
+        } else {
+          // For other actions, wait for a shorter, fixed period as a fallback.
+          // Ideally, this would wait for DOM or network stability, which requires accessing private methods or alternative strategies.
+          logger.info(`Waiting for a short period after ${actionName}`);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 500ms
+        }
       } catch (error) {
         if (error instanceof URLNotAllowedError) {
           throw error;

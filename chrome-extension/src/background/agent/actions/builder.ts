@@ -18,6 +18,7 @@ import {
   getDropdownOptionsActionSchema,
   closeTabActionSchema,
   waitActionSchema,
+  scrollToEndActionSchema,
 } from './schemas';
 import { z } from 'zod';
 import { createLogger } from '@src/background/log';
@@ -580,6 +581,54 @@ export class ActionBuilder {
       true,
     );
     actions.push(selectDropdownOption);
+
+    const scrollToEnd = new Action(async (input: z.infer<typeof scrollToEndActionSchema.schema>) => {
+      const intent = input.intent || `Scrolling to the end of the page`;
+      this.context.emitEvent(Actors.NAVIGATOR, ExecutionState.ACT_START, intent);
+
+      const page = await this.context.browserContext.getCurrentPage();
+
+      logger.info('Scrolling to the end of the page');
+      let scrolledAmount = 0;
+      let lastScrollAmount = 0;
+      let noProgressCount = 0;
+      const maxScrolls = 100; // Safety break to prevent infinite loops
+      const maxNoProgress = 3; // Maximum number of times we can scroll without making progress
+
+      for (let i = 0; i < maxScrolls; i++) {
+        const [initialPixelsAbove, initialPixelsBelow] = await page.getScrollInfo();
+        if (initialPixelsBelow === 0) {
+          logger.info('Reached the bottom of the page');
+          break;
+        }
+
+        // Try to scroll by a larger amount first
+        await page.scrollDown(initialPixelsBelow > 1000 ? 1000 : undefined);
+        const [finalPixelsAbove] = await page.getScrollInfo();
+        const currentScrollAmount = finalPixelsAbove - initialPixelsAbove;
+        scrolledAmount += currentScrollAmount;
+
+        // Check if we're making progress
+        if (currentScrollAmount === 0 || currentScrollAmount === lastScrollAmount) {
+          noProgressCount++;
+          if (noProgressCount >= maxNoProgress) {
+            logger.info('No more progress can be made, stopping scroll');
+            break;
+          }
+        } else {
+          noProgressCount = 0;
+        }
+        lastScrollAmount = currentScrollAmount;
+
+        // Add a small delay to allow content to load and render
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      const msg = `Scrolled down to the end of the page, total scrolled: ${scrolledAmount} pixels`;
+      this.context.emitEvent(Actors.NAVIGATOR, ExecutionState.ACT_OK, msg);
+      return new ActionResult({ extractedContent: msg, includeInMemory: true, isDone: true });
+    }, scrollToEndActionSchema);
+    actions.push(scrollToEnd);
 
     return actions;
   }
